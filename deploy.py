@@ -15,7 +15,7 @@ st.markdown("Daily energy summary and tomorrow's prediction")
 # --- Load Model and Scalers ---
 @st.cache_resource
 def load_assets():
-    model = load_model("solar_model.h5")  # Adjust path if needed
+    model = load_model("solar_model.h5")
     with open("scaler_x.pkl", "rb") as fx:
         scaler_x = pickle.load(fx)
     with open("scaler_y.pkl", "rb") as fy:
@@ -70,7 +70,6 @@ wind_speed = st.slider(
 
 # --- Predict Button ---
 if st.button("🔮 Predict Tomorrow's Energy"):
-    # Create a new sequence with latest 23 points + today's edited input
     latest_sequence = X_scaled[-(time_steps-1):].tolist()  # Last 23 timesteps
     new_point = scaler_x.transform(np.array([[ghi, temp, humidity, wind_speed]]))[0]
     latest_sequence.append(new_point)
@@ -83,11 +82,42 @@ if st.button("🔮 Predict Tomorrow's Energy"):
     pred_scaled = model.predict(latest_sequence)
     pred_energy = scaler_y.inverse_transform(pred_scaled)[0][0]
 
-    # Show today's actual energy
+    # Show actual and predicted
     today_actual_energy = df_daily[target].iloc[-1]
-
     st.metric("Today's Energy Production", f"{today_actual_energy:.2f} Wh")
     st.metric("Tomorrow's Predicted Energy", f"{pred_energy:.2f} Wh")
+
+# --- Switching Logic Simulation ---
+st.subheader("⚙️ Power Source Switching Simulation")
+
+pln_status = st.radio("PLN Status", ["On", "Off"])
+battery_capacity = st.slider("Battery Capacity (%)", 0, 100, 80)
+solar_generating = st.checkbox("Is the Solar Panel Generating Power?", value=True)
+
+if pln_status == "Off":
+    if battery_capacity > 75:
+        source = "☀️ Solar + 🔋 Battery"
+        genset_status = "❌ Off"
+    else:
+        source = "🛢️ Genset"
+        genset_status = "✅ On"
+    charging_status = "🔌 Not charging (PLN is off)"
+    charging_color = "red"
+else:  # PLN On
+    source = "🔌 PLN"
+    genset_status = "❌ Off"
+    if solar_generating:
+        charging_status = "⚡ Charging battery"
+        charging_color = "green"
+    else:
+        charging_status = "🔋 Not charging"
+        charging_color = "red"
+
+st.markdown("### 🔌 Switching Decision Result")
+st.write(f"**Current Power Source:** {source}")
+st.write(f"**Genset Status:** {genset_status}")
+st.write(f"**Battery Charging Status:** {charging_status}")
+st.write(f"**Battery Capacity:** {battery_capacity}%")
 
 # --- Footer ---
 st.caption("Made with ❤️ using Streamlit")
